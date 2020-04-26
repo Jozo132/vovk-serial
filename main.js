@@ -245,10 +245,4 @@ class VovkSerial {
     }
 }
 
-module.exports = {
-    SerialConnection: VovkSerial,
-    SerialPorts: {
-        list: () => SerialList,
-        error: () => SerialListError
-    }
-}
+module.exports = VovkSerial
