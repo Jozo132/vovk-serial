@@ -14,7 +14,8 @@ const isArray = Array.isArray
 
 let SerialList = []
 let SerialListError = undefined
-setInterval(() => {
+
+const SerialListFunction = () => {
     const change = (l, e) => {
         if (isArray(l)) l = l.filter(item => !item.path.startsWith('/dev/ttyS') && !item.manufacturer.includes('Wireless'))
         if (e) {
@@ -26,7 +27,9 @@ setInterval(() => {
         }
     }
     SerialPort.list().then(change).catch(e => change([], e))
-}, 250)
+}
+SerialListFunction()
+setInterval(SerialListFunction, 250)
 
 class VovkSerial {
     constructor(port, baudrate) {
