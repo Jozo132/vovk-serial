@@ -22,7 +22,7 @@
   },
   "homepage": "https://github.com/Jozo132/vovk-serial#readme",
   "dependencies": {
-    "@serialport/parser-readline": "^8.0.6",
-    "serialport": "^8.0.7"
+    "@serialport/parser-readline": "8.0.6",
+    "serialport": "8.0.6"
   }
 }
