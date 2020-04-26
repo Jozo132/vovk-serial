@@ -1,3 +1,5 @@
+// @ts-check
+'use strict'
 
 const SerialPort = require('serialport');
 const Readline = require('@serialport/parser-readline')
@@ -243,4 +245,10 @@ class VovkSerial {
     }
 }
 
-module.exports = VovkSerial
+module.exports = {
+    SerialConnection: VovkSerial,
+    SerialPorts: {
+        list: () => SerialList,
+        error: () => SerialListError
+    }
+}
