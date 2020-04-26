@@ -46,7 +46,6 @@ class VovkSerial {
             firstPacket: true,
             lastPacket: '',
             onDataListener: ((d) => { }),
-            onListChangeListener: ((d) => { }),
             parser: new Readline()
         }
         this.__local__.parser.on('data', raw => {
