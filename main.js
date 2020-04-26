@@ -2,7 +2,6 @@
 const SerialPort = require('serialport');
 const Readline = require('@serialport/parser-readline')
 
-
 const millisOffset = +new Date()
 const millis = () => +new Date() - millisOffset
 
@@ -10,6 +9,22 @@ const isNumber = n => (n >= 0 || n < 0) && n !== null && !isNaN(n)
 const isString = s => typeof s == "string";
 const isFunction = f => f && {}.toString.call(f) === '[object Function]'
 const isArray = Array.isArray
+
+let SerialList = []
+let SerialListError = undefined
+setInterval(() => {
+    const change = (l, e) => {
+        if (isArray(l)) l = l.filter(item => !item.path.startsWith('/dev/ttyS') && !item.manufacturer.includes('Wireless'))
+        if (e) {
+            SerialListError = e
+            SerialList = l
+        } else {
+            SerialListError = undefined
+            SerialList = l
+        }
+    }
+    SerialPort.list().then(change).catch(e => change([], e))
+}, 250)
 
 class VovkSerial {
     constructor(port, baudrate) {
@@ -28,29 +43,8 @@ class VovkSerial {
             timeOfConnection: millis(),
             firstPacket: true,
             lastPacket: '',
-            list: [],
             onDataListener: ((d) => { }),
             onListChangeListener: ((d) => { }),
-            listInterval: setInterval(() => {
-                const change = (l, e) => {
-                    if (isArray(l)) l = l.filter(item => !item.path.startsWith('/dev/ttyS') && !item.manufacturer.includes('Wireless'))
-                    if (e) {
-                        this.__local__.list = l
-                        if (this.__local__.debug) console.log(e)
-                    } else {
-                        const new_list = JSON.stringify(l)
-                        const old_list = JSON.stringify(this.__local__.list)
-                        this.__local__.list = l
-                        if (new_list !== old_list)
-                            try {
-                                this.__local__.onListChangeListener(this.__local__.list)
-                            } catch (e) {
-                                if (this.__local__.debug) console.log(`Serial list change listener function failure: `, e)
-                            }
-                    }
-                }
-                SerialPort.list().then(change).catch(e => change([], e))
-            }, 1000),
             parser: new Readline()
         }
         this.__local__.parser.on('data', raw => {
@@ -85,7 +79,7 @@ class VovkSerial {
         return this.__local__.debug
     }
     list() {
-        return this.__local__.list
+        return SerialList
     }
     port(port, print) {
         if (port) {
@@ -179,7 +173,6 @@ class VovkSerial {
             this.__local__.onDataListener = f
         }
     }
-    onListChange(f) { if (f) this.__local__.onListChangeListener = f }
     available() {
         this.__local__.useBuffer = true
         return this.__local__.inputBuffer.length > 0
