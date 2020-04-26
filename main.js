@@ -13,28 +13,50 @@ const isArray = Array.isArray
 
 class VovkSerial {
     constructor(port, baudrate) {
-        this._debug = false
-        this._comPort = port || ''
-        this._baudrate = baudrate || 115200
-        this._reconnect = false
-        this._reconnectTime = 5000
-        this._connecting = false
-        this._connected = false
-        this._idle = true
-        this._connection = undefined
-        this._inputBuffer = []
-        this._useBuffer = false
-        this._timeOfConnection = millis()
-        this._firstPacket = true
-        this._lastPacket = ''
-        this._list = []
-        this._onDataListener = ((d) => { })
-        this._onListChangeListener = ((d) => { })
-        this._parser = new Readline()
-        this._parser.on('data', raw => {
-            const diff = millis() - this._timeOfConnection
-            if (diff < 100 && this._firstPacket) {
-                this._firstPacket = false
+        this.__local__ = {
+            debug: false,
+            comPort: port || '',
+            baudrate: baudrate || 115200,
+            reconnect: false,
+            reconnectTime: 5000,
+            connecting: false,
+            connected: false,
+            idle: true,
+            connection: undefined,
+            inputBuffer: [],
+            useBuffer: false,
+            timeOfConnection: millis(),
+            firstPacket: true,
+            lastPacket: '',
+            list: [],
+            onDataListener: ((d) => { }),
+            onListChangeListener: ((d) => { }),
+            listInterval: setInterval(() => {
+                const change = (l, e) => {
+                    if (isArray(l)) l = l.filter(item => !item.path.startsWith('/dev/ttyS') && !item.manufacturer.includes('Wireless'))
+                    if (e) {
+                        this.__local__.list = l
+                        if (this.__local__.debug) console.log(e)
+                    } else {
+                        const new_list = JSON.stringify(l)
+                        const old_list = JSON.stringify(this.__local__.list)
+                        this.__local__.list = l
+                        if (new_list !== old_list)
+                            try {
+                                this.__local__.onListChangeListener(this.__local__.list)
+                            } catch (e) {
+                                if (this.__local__.debug) console.log(`Serial list change listener function failure: `, e)
+                            }
+                    }
+                }
+                SerialPort.list().then(change).catch(e => change([], e))
+            }, 1000),
+            parser: new Readline()
+        }
+        this.__local__.parser.on('data', raw => {
+            const diff = millis() - this.__local__.timeOfConnection
+            if (diff < 100 && this.__local__.firstPacket) {
+                this.__local__.firstPacket = false
                 return
             }
             let data = ''
@@ -44,126 +66,106 @@ class VovkSerial {
             } catch (e) {
                 data = raw
             }
-            this._lastPacket = data
-            if (this._useBuffer) {
-                this._inputBuffer.push(data)
-                if (this._inputBuffer.length > 100) this._inputBuffer.shift()
+            this.__local__.lastPacket = data
+            if (this.__local__.useBuffer) {
+                this.__local__.inputBuffer.push(data)
+                if (this.__local__.inputBuffer.length > 100) this.__local__.inputBuffer.shift()
             }
-            if (!this._useBuffer && this._inputBuffer.length > 0) this._inputBuffer = []
+            if (!this.__local__.useBuffer && this.__local__.inputBuffer.length > 0) this.__local__.inputBuffer = []
             try {
-                this._onDataListener(data)
+                this.__local__.onDataListener(data)
             } catch (e) {
-                if (this._debug) console.log(`Serial listener function failure: `, e)
+                if (this.__local__.debug) console.log(`Serial listener function failure: `, e)
             }
         })
-        this._listInterval = setInterval(() => {
-            const change = (l, e) => {
-                if (isArray(l)) l = l.filter(item => !item.path.startsWith('/dev/ttyS') && !item.manufacturer.includes('Wireless'))
-                if (e) {
-                    this._list = l
-                    if (this._debug) console.log(e)
-                } else {
-                    const new_list = JSON.stringify(l)
-                    const old_list = JSON.stringify(this._list)
-                    this._list = l
-                    if (new_list !== old_list)
-                        try {
-                            this._onListChangeListener(this._list)
-                        } catch (e) {
-                            if (this._debug) console.log(`Serial list change listener function failure: `, e)
-                        }
-                }
-            }
-            SerialPort.list().then(change).catch(e => change([], e))
-        }, 1000)
     }
     debug(state) {
-        if (state === undefined) return this._debug
-        this._debug = !!state
-        return this._debug
+        if (state === undefined) return this.__local__.debug
+        this.__local__.debug = !!state
+        return this.__local__.debug
     }
     list() {
-        return this._list
+        return this.__local__.list
     }
     port(port, print) {
         if (port) {
-            if (this._connected) return `Can't change port while connected`
-            else this._comPort = port
-            if (print) console.log(`Selected port '${this._comPort}'`)
+            if (this.__local__.connected) return `Can't change port while connected`
+            else this.__local__.comPort = port
+            if (print) console.log(`Selected port '${this.__local__.comPort}'`)
         }
-        return this._comPort
+        return this.__local__.comPort
     }
     baudrate(baud, print) {
         if (baud) {
-            if (this._connected) return `Can't change baudrate while connected`
-            else this._baudrate = baud
-            if (print) console.log(`Selected baudrate '${this._baudrate}'`)
+            if (this.__local__.connected) return `Can't change baudrate while connected`
+            else this.__local__.baudrate = baud
+            if (print) console.log(`Selected baudrate '${this.__local__.baudrate}'`)
         }
-        return this._baudrate
+        return this.__local__.baudrate
     }
     begin(port_input, baud_input, onData_callback) {
-        if (isString(port_input)) this._comPort = port_input
-        else if (isString(baud_input)) this._comPort = baud_input
-        else if (isString(onData_callback)) this._comPort = onData_callback
+        if (isString(port_input)) this.__local__.comPort = port_input
+        else if (isString(baud_input)) this.__local__.comPort = baud_input
+        else if (isString(onData_callback)) this.__local__.comPort = onData_callback
 
-        if (isNumber(+port_input)) this._baudrate = port_input
-        else if (isNumber(+baud_input)) this._baudrate = baud_input
-        else if (isNumber(+onData_callback)) this._baudrate = onData_callback
+        if (isNumber(+port_input)) this.__local__.baudrate = port_input
+        else if (isNumber(+baud_input)) this.__local__.baudrate = baud_input
+        else if (isNumber(+onData_callback)) this.__local__.baudrate = onData_callback
 
         if (isFunction(port_input)) this.onData(port_input)
         else if (isFunction(baud_input)) this.onData(baud_input)
         else if (isFunction(onData_callback)) this.onData(onData_callback)
 
-        const COM = this._comPort
-        const BAUD = this._baudrate
-        this._reconnect = true
+        const COM = this.__local__.comPort
+        const BAUD = this.__local__.baudrate
+        this.__local__.reconnect = true
         if (!COM) console.log(`Please select a COM port first!`)
         else if (!BAUD) console.log(`Please select a BAUDRATE first!`)
         else {
-            this._idle = false
-            if (!this._connected && !this._connecting) {
-                this._connecting = true
-                if (this._debug) console.log(`Connecting to serial: ${COM}`)
-                this._connection = new SerialPort(COM, { baudRate: BAUD })
-                this._connection.pipe(this._parser)
-                this._connection.on('open', () => {
-                    if (this._debug) console.log(`Device ${COM} connected!`)
-                    this._timeOfConnection = millis()
-                    this._firstPacket = true;
-                    this._connecting = false;
-                    this._connected = true;
+            this.__local__.idle = false
+            if (!this.__local__.connected && !this.__local__.connecting) {
+                this.__local__.connecting = true
+                if (this.__local__.debug) console.log(`Connecting to serial: ${COM}`)
+                this.__local__.connection = new SerialPort(COM, { baudRate: BAUD })
+                this.__local__.connection.pipe(this.__local__.parser)
+                this.__local__.connection.on('open', () => {
+                    if (this.__local__.debug) console.log(`Device ${COM} connected!`)
+                    this.__local__.timeOfConnection = millis()
+                    this.__local__.firstPacket = true;
+                    this.__local__.connecting = false;
+                    this.__local__.connected = true;
                 });
-                this._connection.on('close', () => {
-                    if (this._debug) console.log(`Device ${COM} disconnected!`)
-                    this._connecting = false
-                    this._connected = false;
-                    if (this._reconnect) {
-                        this._connecting = true
-                        setTimeout(() => this.reconnect(), this._reconnectTime);
+                this.__local__.connection.on('close', () => {
+                    if (this.__local__.debug) console.log(`Device ${COM} disconnected!`)
+                    this.__local__.connecting = false
+                    this.__local__.connected = false;
+                    if (this.__local__.reconnect) {
+                        this.__local__.connecting = true
+                        setTimeout(() => this.reconnect(), this.__local__.reconnectTime);
                     } else {
-                        this._idle = true
-                        this._connecting = false
+                        this.__local__.idle = true
+                        this.__local__.connecting = false
                     }
                 });
-                this._connection.on('error', () => {
-                    if (this._debug) console.log(`Device ${COM} error!`)
-                    this._connected = false;
-                    if (this._reconnect) {
-                        this._connecting = true
-                        setTimeout(() => this.reconnect(), this._reconnectTime);
+                this.__local__.connection.on('error', () => {
+                    if (this.__local__.debug) console.log(`Device ${COM} error!`)
+                    this.__local__.connected = false;
+                    if (this.__local__.reconnect) {
+                        this.__local__.connecting = true
+                        setTimeout(() => this.reconnect(), this.__local__.reconnectTime);
                     } else {
-                        this._idle = true
-                        this._connecting = false
+                        this.__local__.idle = true
+                        this.__local__.connecting = false
                     }
                 })
             } else {
-                this._idle = true
-                if (this._debug) console.log(`Please disconnect serial port before connecting!`)
+                this.__local__.idle = true
+                if (this.__local__.debug) console.log(`Please disconnect serial port before connecting!`)
             }
         }
     }
-    connected() { return this._connected }
-    idle() { return this._idle }
+    connected() { return this.__local__.connected }
+    idle() { return this.__local__.idle }
     parseJSON(packet) {
         const decodedString = typeof packet === 'string' ? packet : Object.keys(packet).map(k => packet[k]).join(',')
         let decodedJSON = undefined
@@ -173,34 +175,34 @@ class VovkSerial {
     }
     onData(f) {
         if (f) {
-            this._useBuffer = false
-            this._onDataListener = f
+            this.__local__.useBuffer = false
+            this.__local__.onDataListener = f
         }
     }
-    onListChange(f) { if (f) this._onListChangeListener = f }
+    onListChange(f) { if (f) this.__local__.onListChangeListener = f }
     available() {
-        this._useBuffer = true
-        return this._inputBuffer.length > 0
+        this.__local__.useBuffer = true
+        return this.__local__.inputBuffer.length > 0
     }
     last() {
-        return this._lastPacket
+        return this.__local__.lastPacket
     }
     read() {
-        this._useBuffer = true
+        this.__local__.useBuffer = true
         let output
-        if (this._inputBuffer.length > 0) output = this._inputBuffer.shift()
+        if (this.__local__.inputBuffer.length > 0) output = this.__local__.inputBuffer.shift()
         return output
     }
     peek(i) {
-        this._useBuffer = true
+        this.__local__.useBuffer = true
         let output
-        if (this._inputBuffer.length > 0) output = this._inputBuffer[i || 0]
+        if (this.__local__.inputBuffer.length > 0) output = this.__local__.inputBuffer[i || 0]
         return output
     }
     print(msg) {
-        if (this._connected) {
-            if (this._debug) console.warn(`Serial out: '${msg}'`);
-            this._connection.write(msg)
+        if (this.__local__.connected) {
+            if (this.__local__.debug) console.warn(`Serial out: '${msg}'`);
+            this.__local__.connection.write(msg)
         }
     }
     println(msg) {
@@ -210,40 +212,40 @@ class VovkSerial {
         this.print(msg)
     }
     reconnect() {
-        if (this._reconnect) {
+        if (this.__local__.reconnect) {
 
-            this._idle = false
-            if (this._debug) console.log(`Reconnecting ...`)
-            if (!this._connected) {
+            this.__local__.idle = false
+            if (this.__local__.debug) console.log(`Reconnecting ...`)
+            if (!this.__local__.connected) {
                 try {
-                    this._connection.open()
+                    this.__local__.connection.open()
                 } catch (e) {
-                    if (this._debug) console.log(`Reconnecting failed:`, e)
+                    if (this.__local__.debug) console.log(`Reconnecting failed:`, e)
                 }
             }
         }
     }
-    reconnecting() { return this._reconnect }
+    reconnecting() { return this.__local__.reconnect }
     reconnectInterval(time) {
-        if (time >= 0) this._reconnectTime = time
-        return this._reconnectTime
+        if (time >= 0) this.__local__.reconnectTime = time
+        return this.__local__.reconnectTime
     }
     end() {
-        if (this._debug && (this._connected || this._connecting)) console.log(`Closing port`)
-        this._reconnect = false
-        this._connecting = false
+        if (this.__local__.debug && (this.__local__.connected || this.__local__.connecting)) console.log(`Closing port`)
+        this.__local__.reconnect = false
+        this.__local__.connecting = false
         try {
-            this._connection.close(err => {
-                this._connection = undefined
-                this._connected = false
-                this._idle = true
-                this._inputBuffer = []
-                if (this._debug) console.log('port closed', err)
+            this.__local__.connection.close(err => {
+                this.__local__.connection = undefined
+                this.__local__.connected = false
+                this.__local__.idle = true
+                this.__local__.inputBuffer = []
+                if (this.__local__.debug) console.log('port closed', err)
             });
         } catch (e) {
-            this._connected = false
-            this._idle = true
-            this._inputBuffer = []
+            this.__local__.connected = false
+            this.__local__.idle = true
+            this.__local__.inputBuffer = []
         }
     }
 }
