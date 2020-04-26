@@ -1,0 +1,28 @@
+{
+  "name": "vovk-serial",
+  "version": "0.0.0",
+  "description": "Serial wrapper for Node.JS",
+  "main": "main.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\""
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Jozo132/vovk-serial.git"
+  },
+  "keywords": [
+    "Serial",
+    "COM",
+    "arduino"
+  ],
+  "author": "J.Vovk",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Jozo132/vovk-serial/issues"
+  },
+  "homepage": "https://github.com/Jozo132/vovk-serial#readme",
+  "dependencies": {
+    "@serialport/parser-readline": "^8.0.6",
+    "serialport": "^8.0.7"
+  }
+}
