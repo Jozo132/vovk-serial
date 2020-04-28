@@ -38,7 +38,7 @@ class VovkSerial {
             comPort: port || '',
             baudrate: baudrate || 115200,
             reconnect: false,
-            reconnectTime: 5000,
+            reconnectTime: 1500,
             connecting: false,
             connected: false,
             idle: true,
@@ -48,7 +48,15 @@ class VovkSerial {
             timeOfConnection: millis(),
             firstPacket: true,
             lastPacket: '',
-            onDataListener: ((d) => { }),
+            packetsReceived: 0,
+            packetsSent: 0,
+            errorCount: 0,
+            reconnectCount: 0,
+            onConnectListener: c => { },
+            onDisconnectListener: d => { },
+            onErrorListener: e => { },
+            onReadListener: p => { },
+            onWriteListener: p => { },
             parser: new Readline()
         }
         this.__local__.parser.on('data', raw => {
@@ -70,8 +78,10 @@ class VovkSerial {
                 if (this.__local__.inputBuffer.length > 100) this.__local__.inputBuffer.shift()
             }
             if (!this.__local__.useBuffer && this.__local__.inputBuffer.length > 0) this.__local__.inputBuffer = []
+
+            this.__local__.packetsReceived++
             try {
-                this.__local__.onDataListener(data)
+                this.__local__.onReadListener(data)
             } catch (e) {
                 if (this.__local__.debug) console.log(`Serial listener function failure: `, e)
             }
@@ -110,9 +120,9 @@ class VovkSerial {
         else if (isNumber(+baud_input)) this.__local__.baudrate = baud_input
         else if (isNumber(+onData_callback)) this.__local__.baudrate = onData_callback
 
-        if (isFunction(port_input)) this.onData(port_input)
-        else if (isFunction(baud_input)) this.onData(baud_input)
-        else if (isFunction(onData_callback)) this.onData(onData_callback)
+        if (isFunction(port_input)) this.onRead(port_input)
+        else if (isFunction(baud_input)) this.onRead(baud_input)
+        else if (isFunction(onData_callback)) this.onRead(onData_callback)
 
         const COM = this.__local__.comPort
         const BAUD = this.__local__.baudrate
@@ -130,13 +140,17 @@ class VovkSerial {
                     if (this.__local__.debug) console.log(`Device ${COM} connected!`)
                     this.__local__.timeOfConnection = millis()
                     this.__local__.firstPacket = true;
+                    this.__local__.packetsReceived = 0;
+                    this.__local__.packetsSent = 0;
                     this.__local__.connecting = false;
                     this.__local__.connected = true;
+                    this.__local__.onConnectListener(true)
                 });
                 this.__local__.connection.on('close', () => {
                     if (this.__local__.debug) console.log(`Device ${COM} disconnected!`)
                     this.__local__.connecting = false
                     this.__local__.connected = false;
+                    this.__local__.onDisconnectListener()
                     if (this.__local__.reconnect) {
                         this.__local__.connecting = true
                         setTimeout(() => this.reconnect(), this.__local__.reconnectTime);
@@ -148,6 +162,8 @@ class VovkSerial {
                 this.__local__.connection.on('error', () => {
                     if (this.__local__.debug) console.log(`Device ${COM} error!`)
                     this.__local__.connected = false;
+                    this.__local__.errorCount++
+                    this.__local__.onErrorListener()
                     if (this.__local__.reconnect) {
                         this.__local__.connecting = true
                         setTimeout(() => this.reconnect(), this.__local__.reconnectTime);
@@ -162,6 +178,27 @@ class VovkSerial {
             }
         }
     }
+    onConnect(f) {
+        if (f) {
+            this.__local__.onConnectListener = f
+            return true
+        }
+        return false
+    }
+    onDisconnect(f) {
+        if (f) {
+            this.__local__.onDisconnectListener = f
+            return true
+        }
+        return false
+    }
+    onError(f) {
+        if (f) {
+            this.__local__.onErrorListener = f
+            return true
+        }
+        return false
+    }
     connected() { return this.__local__.connected }
     idle() { return this.__local__.idle }
     parseJSON(packet) {
@@ -171,11 +208,34 @@ class VovkSerial {
         try { decodedJSON = JSON.parse(decodedString) } catch (e) { try { decodedARRAY = decodedString.split(/[ ,]+/) } catch (e) { } }
         return decodedARRAY || decodedJSON || decodedString
     }
-    onData(f) {
+    info() {
+        const output = {
+            port: this.__local__.comPort,
+            baudrate: this.__local__.baudrate,
+            idle: this.__local__.idle,
+            connected: this.__local__.connected,
+            errorCount: this.__local__.errorCount,
+            reconnectCount: this.__local__.reconnectCount,
+            packetsReceived: this.__local__.packetsReceived,
+            packetsSent: this.__local__.packetsSent,
+            millisOnline: this.__local__.connected ? millis() - this.__local__.timeOfConnection : 0,
+        }
+        return output
+    }
+    onRead(f) {
         if (f) {
             this.__local__.useBuffer = false
-            this.__local__.onDataListener = f
+            this.__local__.onReadListener = f
+            return true
         }
+        return false
+    }
+    onWrite(f) {
+        if (f) {
+            this.__local__.onWriteListener = f
+            return true
+        }
+        return false
     }
     available() {
         this.__local__.useBuffer = true
@@ -199,8 +259,12 @@ class VovkSerial {
     print(msg) {
         if (this.__local__.connected) {
             if (this.__local__.debug) console.warn(`Serial out: '${msg}'`);
+            this.__local__.onWriteListener(msg)
             this.__local__.connection.write(msg)
+            this.__local__.packetsSent++
+            return true
         }
+        return false 
     }
     println(msg) {
         this.print(msg + '\r\n')
@@ -210,7 +274,7 @@ class VovkSerial {
     }
     reconnect() {
         if (this.__local__.reconnect) {
-
+            this.__local__.reconnectCount++
             this.__local__.idle = false
             if (this.__local__.debug) console.log(`Reconnecting ...`)
             if (!this.__local__.connected) {
