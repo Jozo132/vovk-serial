@@ -53,6 +53,7 @@ class VovkSerial {
             errorCount: 0,
             reconnectCount: 0,
             onConnectListener: c => { },
+            onReconnectListener: r => { },
             onDisconnectListener: d => { },
             onErrorListener: e => { },
             onReadListener: p => { },
@@ -83,7 +84,7 @@ class VovkSerial {
             try {
                 this.__local__.onReadListener(data)
             } catch (e) {
-                if (this.__local__.debug) console.log(`Serial listener function failure: `, e)
+                if (this.__local__.debug) console.log(`Serial onRead listener function failure: `, e)
             }
         })
     }
@@ -136,21 +137,39 @@ class VovkSerial {
                 if (this.__local__.debug) console.log(`Connecting to serial: ${COM}`)
                 this.__local__.connection = new SerialPort(COM, { baudRate: BAUD })
                 this.__local__.connection.pipe(this.__local__.parser)
+                let firstConnect = true;
                 this.__local__.connection.on('open', () => {
-                    if (this.__local__.debug) console.log(`Device ${COM} connected!`)
                     this.__local__.timeOfConnection = millis()
                     this.__local__.firstPacket = true;
-                    this.__local__.packetsReceived = 0;
-                    this.__local__.packetsSent = 0;
                     this.__local__.connecting = false;
                     this.__local__.connected = true;
-                    this.__local__.onConnectListener(true)
+                    if (firstConnect) {
+                        if (this.__local__.debug) console.log(`Device ${COM} connected!`)
+                        this.__local__.packetsReceived = 0;
+                        this.__local__.packetsSent = 0;
+                        try {
+                            this.__local__.onConnectListener(true)
+                        } catch (e) {
+                            if (this.__local__.debug) console.log(`Serial onConnect listener function failure: `, e)
+                        }
+                    } else {
+                        if (this.__local__.debug) console.log(`Device ${COM} reconnected!`)
+                        try {
+                            this.__local__.onReconnectListener(true)
+                        } catch (e) {
+                            if (this.__local__.debug) console.log(`Serial onReconnect listener function failure: `, e)
+                        }
+                    }
                 });
                 this.__local__.connection.on('close', () => {
                     if (this.__local__.debug) console.log(`Device ${COM} disconnected!`)
                     this.__local__.connecting = false
                     this.__local__.connected = false;
-                    this.__local__.onDisconnectListener()
+                    try {
+                        this.__local__.onDisconnectListener(true)
+                    } catch (e) {
+                        if (this.__local__.debug) console.log(`Serial onDisconnect listener function failure: `, e)
+                    }
                     if (this.__local__.reconnect) {
                         this.__local__.connecting = true
                         setTimeout(() => this.reconnect(), this.__local__.reconnectTime);
@@ -163,7 +182,11 @@ class VovkSerial {
                     if (this.__local__.debug) console.log(`Device ${COM} error!`)
                     this.__local__.connected = false;
                     this.__local__.errorCount++
-                    this.__local__.onErrorListener()
+                    try {
+                        this.__local__.onErrorListener(true)
+                    } catch (e) {
+                        if (this.__local__.debug) console.log(`Serial onError listener function failure: `, e)
+                    }
                     if (this.__local__.reconnect) {
                         this.__local__.connecting = true
                         setTimeout(() => this.reconnect(), this.__local__.reconnectTime);
@@ -181,6 +204,13 @@ class VovkSerial {
     onConnect(f) {
         if (f) {
             this.__local__.onConnectListener = f
+            return true
+        }
+        return false
+    }
+    onReconnect(f) {
+        if (f) {
+            this.__local__.onReconnectListener = f
             return true
         }
         return false
@@ -259,12 +289,16 @@ class VovkSerial {
     print(msg) {
         if (this.__local__.connected) {
             if (this.__local__.debug) console.warn(`Serial out: '${msg}'`);
-            this.__local__.onWriteListener(msg)
+            try {
+                this.__local__.onWriteListener(msg)
+            } catch (e) {
+                if (this.__local__.debug) console.log(`Serial onWrite listener function failure: `, e)
+            }
             this.__local__.connection.write(msg)
             this.__local__.packetsSent++
             return true
         }
-        return false 
+        return false
     }
     println(msg) {
         this.print(msg + '\r\n')
