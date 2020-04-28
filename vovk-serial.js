@@ -50,6 +50,7 @@ class VovkSerial {
             lastPacket: '',
             packetsReceived: 0,
             packetsSent: 0,
+            error: false,
             errorCount: 0,
             reconnectCount: 0,
             onConnectListener: c => { },
@@ -143,6 +144,7 @@ class VovkSerial {
                     this.__local__.firstPacket = true;
                     this.__local__.connecting = false;
                     this.__local__.connected = true;
+                    this.__local__.error = false;
                     if (firstConnect) {
                         if (this.__local__.debug) console.log(`Device ${COM} connected!`)
                         this.__local__.packetsReceived = 0;
@@ -163,13 +165,6 @@ class VovkSerial {
                 });
                 this.__local__.connection.on('close', () => {
                     if (this.__local__.debug) console.log(`Device ${COM} disconnected!`)
-                    this.__local__.connecting = false
-                    this.__local__.connected = false;
-                    try {
-                        this.__local__.onDisconnectListener(true)
-                    } catch (e) {
-                        if (this.__local__.debug) console.log(`Serial onDisconnect listener function failure: `, e)
-                    }
                     if (this.__local__.reconnect) {
                         this.__local__.connecting = true
                         setTimeout(() => this.reconnect(), this.__local__.reconnectTime);
@@ -177,26 +172,35 @@ class VovkSerial {
                         this.__local__.idle = true
                         this.__local__.connecting = false
                     }
+                    this.__local__.connected = false;
+                    this.__local__.error = false;
+                    try {
+                        this.__local__.onDisconnectListener(true)
+                    } catch (e) {
+                        if (this.__local__.debug) console.log(`Serial onDisconnect listener function failure: `, e)
+                    }
                 });
                 this.__local__.connection.on('error', () => {
                     if (this.__local__.debug) console.log(`Device ${COM} error!`)
+                    if (this.__local__.reconnect) {
+                        this.__local__.connecting = true
+                        setTimeout(() => this.reconnect(), this.__local__.reconnectTime);
+                    } else {
+                        this.__local__.idle = true
+                        this.__local__.connecting = false
+                    }
                     this.__local__.connected = false;
+                    this.__local__.error = true;
                     this.__local__.errorCount++
                     try {
                         this.__local__.onErrorListener(true)
                     } catch (e) {
                         if (this.__local__.debug) console.log(`Serial onError listener function failure: `, e)
                     }
-                    if (this.__local__.reconnect) {
-                        this.__local__.connecting = true
-                        setTimeout(() => this.reconnect(), this.__local__.reconnectTime);
-                    } else {
-                        this.__local__.idle = true
-                        this.__local__.connecting = false
-                    }
                 })
             } else {
                 this.__local__.idle = true
+                this.__local__.error = false;
                 if (this.__local__.debug) console.log(`Please disconnect serial port before connecting!`)
             }
         }
@@ -243,7 +247,9 @@ class VovkSerial {
             port: this.__local__.comPort,
             baudrate: this.__local__.baudrate,
             idle: this.__local__.idle,
+            connecting: this.__local__.connecting,
             connected: this.__local__.connected,
+            error: this.__local__.error,
             errorCount: this.__local__.errorCount,
             reconnectCount: this.__local__.reconnectCount,
             packetsReceived: this.__local__.packetsReceived,
@@ -328,6 +334,7 @@ class VovkSerial {
     end() {
         if (this.__local__.debug && (this.__local__.connected || this.__local__.connecting)) console.log(`Closing port`)
         this.__local__.reconnect = false
+        this.__local__.error = false
         this.__local__.connecting = false
         try {
             this.__local__.connection.close(err => {
