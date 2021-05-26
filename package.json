@@ -2,7 +2,7 @@
   "name": "vovk-serial",
   "version": "0.1.3",
   "description": "Serial wrapper for Node.JS",
-  "main": "main.js",
+  "main": "vovk-serial.js",
   "scripts": {
     "test": "echo \"Error: no test specified\""
   },
@@ -22,7 +22,7 @@
   },
   "homepage": "https://github.com/Jozo132/vovk-serial#readme",
   "dependencies": {
-    "@serialport/parser-readline": "8.0.6",
-    "serialport": "8.0.6"
+    "@serialport/parser-readline": "^8.0.6",
+    "serialport": "^8.0.8"
   }
 }
